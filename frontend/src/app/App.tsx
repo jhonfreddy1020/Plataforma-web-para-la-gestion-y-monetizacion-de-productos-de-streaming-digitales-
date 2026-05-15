@@ -39,8 +39,10 @@ const typeMap: any = {
 export default function App() {
   const carouselRef = React.useRef<HTMLDivElement>(null);
   const [activeTab, setActiveTab] = useState("home");
-  const [activeFilter, setActiveFilter] = useState("all");
+  const [activeFilter, setActiveFilter] = useState<string | number>("all");
   const [platforms, setPlatforms] = useState<any[]>([]);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [showSearch, setShowSearch] = useState(false);
   const categories = [
     { id: "all", label: "Todo" },
 
@@ -50,7 +52,8 @@ export default function App() {
       icon: typeMap[tipo]?.icon || Smartphone,
     })),
   ];
-  const [cart, setCart] = useState<number[]>([]);
+  const [cart, setCart] = useState<{ id: number; cantidad: number }[]>([]);
+
   const [timeLeft, setTimeLeft] = useState({ h: 2, m: 45, s: 12 });
 
   //useEffect → PRODUCTOS
@@ -88,10 +91,38 @@ export default function App() {
     return () => clearInterval(timer);
   }, []);
 
-  const toggleCart = (id: number) => {
-    setCart((prev) =>
-      prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id],
-    );
+  const addToCart = (id: number) => {
+    setCart((prev) => {
+      const existing = prev.find((item) => item.id === id);
+
+      // SI YA EXISTE → SUMAR
+      if (existing) {
+        return prev.map((item) =>
+          item.id === id ? { ...item, cantidad: item.cantidad + 1 } : item,
+        );
+      }
+
+      // SI NO EXISTE → CREAR
+      return [...prev, { id, cantidad: 1 }];
+    });
+  };
+
+  const removeFromCart = (id: number) => {
+    setCart((prev) => {
+      const existing = prev.find((item) => item.id === id);
+
+      if (!existing) return prev;
+
+      // SI QUEDA 0 → ELIMINAR
+      if (existing.cantidad === 1) {
+        return prev.filter((item) => item.id !== id);
+      }
+
+      // RESTAR
+      return prev.map((item) =>
+        item.id === id ? { ...item, cantidad: item.cantidad - 1 } : item,
+      );
+    });
   };
 
   const scrollLeft = () => {
@@ -113,9 +144,17 @@ export default function App() {
   };
 
   const filteredPlatforms = platforms.filter((p: any) => {
-    if (activeFilter === "all") return true;
+    // FILTRO POR CATEGORÍA
+    const matchesCategory =
+      activeFilter === "all" ||
+      getCategory(p.tipo).toLowerCase() === String(activeFilter).toLowerCase();
 
-    return getCategory(p.tipo) === activeFilter;
+    // FILTRO POR BÚSQUEDA
+    const matchesSearch = p.nombre
+      .toLowerCase()
+      .includes(searchTerm.toLowerCase());
+
+    return matchesCategory && matchesSearch;
   });
 
   const getGradient = (tipo: number) => {
@@ -163,6 +202,58 @@ export default function App() {
           <User className="w-5 h-5 text-neutral-400" />
         </div>
       </header>
+
+      <AnimatePresence>
+        {showSearch && (
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            className="fixed top-20 left-0 w-full z-50 px-5"
+          >
+            <div className="max-w-lg mx-auto bg-neutral-900 border border-neutral-700 rounded-2xl p-3 shadow-2xl">
+              <div className="flex items-center gap-2">
+                <Search className="w-5 h-5 text-neutral-400" />
+
+                <input
+                  type="text"
+                  placeholder="Buscar producto..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-full bg-transparent outline-none text-white placeholder:text-neutral-500"
+                />
+              </div>
+
+              {/* RESULTADOS */}
+              {searchTerm.length > 0 && (
+                <div className="mt-3 max-h-60 overflow-y-auto">
+                  {filteredPlatforms.length > 0 ? (
+                    filteredPlatforms.map((p: any) => (
+                      <button
+                        key={p.idproducto}
+                        onClick={() => {
+                          setSearchTerm(p.nombre);
+                        }}
+                        className="w-full text-left px-3 py-2 rounded-xl hover:bg-neutral-800 transition"
+                      >
+                        <p className="font-semibold text-white">{p.nombre}</p>
+
+                        <p className="text-sm text-neutral-400">
+                          ${p.precioventa.toLocaleString("es-CO")}
+                        </p>
+                      </button>
+                    ))
+                  ) : (
+                    <p className="text-neutral-500 text-sm px-3 py-2">
+                      No hay coincidencias
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <main className="pb-32">
         {/* HERO SECTION - Vibrant & Urgency Driven */}
@@ -283,7 +374,7 @@ export default function App() {
             </button>
           </div>
           <div className="px-5">
-            <AnimatePresence>
+            <AnimatePresence mode="wait">
               <div
                 ref={carouselRef}
                 className="flex gap-4 overflow-x-auto pb-8 pt-2 snap-x snap-mandatory [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
@@ -294,11 +385,15 @@ export default function App() {
                   const precioFull =
                     platform.precioventa +
                     (platform.precioventa * descuento) / 100;
-                  const inCart = cart.includes(platform.idproducto);
+                  const cartItem = cart.find(
+                    (item) => item.id === platform.idproducto,
+                  );
+                  const cantidad = cartItem?.cantidad || 0;
+
+                  const inCart = cantidad > 0;
 
                   return (
                     <motion.div
-                      layout
                       initial={{ opacity: 0, x: 20 }}
                       animate={{ opacity: 1, x: 0 }}
                       exit={{ opacity: 0, scale: 0.9 }}
@@ -373,27 +468,54 @@ export default function App() {
                           </div>
 
                           {/* Action Button */}
-                          <button
-                            onClick={() => toggleCart(platform.idproducto)}
-                            className={cn(
-                              "w-full py-3.5 rounded-xl font-bold text-sm transition-all duration-300 flex items-center justify-center gap-2",
-                              inCart
-                                ? "bg-rose-500 text-white"
-                                : "bg-white text-black hover:bg-neutral-200",
-                            )}
-                          >
-                            {inCart ? (
-                              <>
-                                <CheckCircle2 className="w-5 h-5" />
-                                Añadido al Carrito
-                              </>
-                            ) : (
-                              <>
-                                Lo Quiero Ahora
-                                <ChevronRight className="w-4 h-4" />
-                              </>
-                            )}
-                          </button>
+                          <div className="flex items-center gap-3">
+                            {/* BOTÓN MENOS */}
+                            <button
+                              onClick={() =>
+                                removeFromCart(platform.idproducto)
+                              }
+                              disabled={!inCart}
+                              className={cn(
+                                "w-12 h-12 rounded-xl flex items-center justify-center font-bold text-xl transition-all duration-300",
+                                inCart
+                                  ? "bg-neutral-800 text-white hover:bg-neutral-700"
+                                  : "bg-neutral-900 text-neutral-600 cursor-not-allowed",
+                              )}
+                            >
+                              -
+                            </button>
+
+                            {/* BOTÓN PRINCIPAL */}
+                            <button
+                              onClick={() => addToCart(platform.idproducto)}
+                              className={cn(
+                                "flex-1 py-3.5 rounded-xl font-bold text-sm transition-all duration-300 flex items-center justify-center gap-2",
+                                inCart
+                                  ? "bg-rose-500 text-white"
+                                  : "bg-white text-black hover:bg-neutral-200",
+                              )}
+                            >
+                              {inCart ? (
+                                <>
+                                  <CheckCircle2 className="w-5 h-5" />
+                                  {cantidad} en carrito
+                                </>
+                              ) : (
+                                <>
+                                  Lo Quiero Ahora
+                                  <ChevronRight className="w-4 h-4" />
+                                </>
+                              )}
+                            </button>
+
+                            {/* BOTÓN MÁS */}
+                            <button
+                              onClick={() => addToCart(platform.idproducto)}
+                              className="w-12 h-12 rounded-xl bg-neutral-800 text-white hover:bg-neutral-700 flex items-center justify-center font-bold text-xl transition-all duration-300"
+                            >
+                              +
+                            </button>
+                          </div>
                         </div>
                       </div>
                     </motion.div>
@@ -440,7 +562,7 @@ export default function App() {
                   <div className="relative">
                     <ShoppingBag className="w-6 h-6 text-white" />
                     <span className="absolute -top-2 -right-2 w-5 h-5 rounded-full bg-white text-black text-xs font-bold flex items-center justify-center">
-                      {cart.length}
+                      {cart.reduce((acc, item) => acc + item.cantidad, 0)}
                     </span>
                   </div>
                   <div className="text-left">
@@ -456,12 +578,12 @@ export default function App() {
                   <span className="font-black text-lg text-white">
                     $
                     {cart
-                      .reduce((acc, id) => {
+                      .reduce((acc, item) => {
                         const p = platforms.find(
-                          (pl: any) => pl.idproducto === id,
+                          (pl: any) => pl.idproducto === item.id,
                         );
 
-                        return acc + (p?.precioventa || 0);
+                        return acc + (p?.precioventa || 0) * item.cantidad;
                       }, 0)
                       .toLocaleString("es-CO")}
                   </span>
@@ -478,7 +600,12 @@ export default function App() {
         <div className="max-w-md mx-auto flex justify-between items-center">
           {[
             { id: "home", icon: Home, label: "Inicio" },
-            { id: "search", icon: Search, label: "Buscar" },
+            {
+              id: "search",
+              icon: Search,
+              label: "Buscar",
+              action: () => setShowSearch((prev) => !prev),
+            },
             { id: "orders", icon: ShoppingBag, label: "Mis Pedidos" },
             { id: "profile", icon: User, label: "Perfil" },
           ].map((tab) => {
@@ -487,7 +614,13 @@ export default function App() {
             return (
               <button
                 key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
+                onClick={() => {
+                  setActiveTab(tab.id);
+
+                  if (tab.action) {
+                    tab.action();
+                  }
+                }}
                 className="flex flex-col items-center gap-1.5 min-w-[64px] group relative py-1"
               >
                 {isActive && (
