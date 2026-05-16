@@ -43,6 +43,7 @@ export default function App() {
   const [platforms, setPlatforms] = useState<any[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [showSearch, setShowSearch] = useState(false);
+  const [showCart, setShowCart] = useState(false);
   const categories = [
     { id: "all", label: "Todo" },
 
@@ -52,7 +53,7 @@ export default function App() {
       icon: typeMap[tipo]?.icon || Smartphone,
     })),
   ];
-  const [cart, setCart] = useState<{ id: number; cantidad: number }[]>([]);
+  const [cart, setCart] = useState<any[]>([]);
 
   const [timeLeft, setTimeLeft] = useState({ h: 2, m: 45, s: 12 });
 
@@ -66,6 +67,26 @@ export default function App() {
       .catch((error) => {
         console.error("Error cargando productos:", error);
       });
+  }, []);
+
+  const idUsuario = 1;
+
+  const loadCart = async () => {
+    try {
+      const response = await fetch(
+        `http://localhost:3000/carrito/${idUsuario}`,
+      );
+
+      const data = await response.json();
+
+      setCart(data);
+    } catch (error) {
+      console.error("Error cargando carrito:", error);
+    }
+  };
+
+  useEffect(() => {
+    loadCart();
   }, []);
 
   //useEffect → TIMER
@@ -91,38 +112,93 @@ export default function App() {
     return () => clearInterval(timer);
   }, []);
 
-  const addToCart = (id: number) => {
-    setCart((prev) => {
-      const existing = prev.find((item) => item.id === id);
+  const addToCart = async (idProducto: number) => {
+    try {
+      await fetch("http://localhost:3000/carrito/agregar", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          idUsuario,
+          idProducto,
+        }),
+      });
 
-      // SI YA EXISTE → SUMAR
-      if (existing) {
-        return prev.map((item) =>
-          item.id === id ? { ...item, cantidad: item.cantidad + 1 } : item,
-        );
-      }
-
-      // SI NO EXISTE → CREAR
-      return [...prev, { id, cantidad: 1 }];
-    });
+      // RECARGAR CARRITO
+      loadCart();
+    } catch (error) {
+      console.error("Error agregando:", error);
+    }
   };
 
-  const removeFromCart = (id: number) => {
-    setCart((prev) => {
-      const existing = prev.find((item) => item.id === id);
+  const removeFromCart = async (idProducto: number) => {
+    try {
+      await fetch("http://localhost:3000/carrito/restar", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          idUsuario,
+          idProducto,
+        }),
+      });
 
-      if (!existing) return prev;
+      // RECARGAR
+      loadCart();
+    } catch (error) {
+      console.error("Error restando:", error);
+    }
+  };
 
-      // SI QUEDA 0 → ELIMINAR
-      if (existing.cantidad === 1) {
-        return prev.filter((item) => item.id !== id);
-      }
+  const deleteFromCart = async (idProducto: number) => {
+    try {
+      await fetch("http://localhost:3000/carrito/eliminar", {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          idUsuario,
+          idProducto,
+        }),
+      });
 
-      // RESTAR
-      return prev.map((item) =>
-        item.id === id ? { ...item, cantidad: item.cantidad - 1 } : item,
-      );
-    });
+      loadCart();
+    } catch (error) {
+      console.error(error);
+    }
+  };
+
+  const clearCart = async () => {
+    const confirmacion = window.confirm(
+      "Se eliminarán todos los productos de tu pedido",
+    );
+
+    if (!confirmacion) return;
+
+    const segundaConfirmacion = window.confirm(
+      "¿Seguro que deseas vaciar el carrito?",
+    );
+
+    if (!segundaConfirmacion) return;
+
+    try {
+      await fetch("http://localhost:3000/carrito/vaciar", {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          idUsuario,
+        }),
+      });
+
+      loadCart();
+    } catch (error) {
+      console.error(error);
+    }
   };
 
   const scrollLeft = () => {
@@ -212,6 +288,7 @@ export default function App() {
             className="fixed top-20 left-0 w-full z-50 px-5"
           >
             <div className="max-w-lg mx-auto bg-neutral-900 border border-neutral-700 rounded-2xl p-3 shadow-2xl">
+              {/* INPUT */}
               <div className="flex items-center gap-2">
                 <Search className="w-5 h-5 text-neutral-400" />
 
@@ -228,21 +305,41 @@ export default function App() {
               {searchTerm.length > 0 && (
                 <div className="mt-3 max-h-60 overflow-y-auto">
                   {filteredPlatforms.length > 0 ? (
-                    filteredPlatforms.map((p: any) => (
-                      <button
-                        key={p.idproducto}
-                        onClick={() => {
-                          setSearchTerm(p.nombre);
-                        }}
-                        className="w-full text-left px-3 py-2 rounded-xl hover:bg-neutral-800 transition"
-                      >
-                        <p className="font-semibold text-white">{p.nombre}</p>
+                    filteredPlatforms.map((platform) => {
+                      const cartItem = cart.find(
+                        (item) => item.idproducto === platform.idproducto,
+                      );
 
-                        <p className="text-sm text-neutral-400">
-                          ${p.precioventa.toLocaleString("es-CO")}
-                        </p>
-                      </button>
-                    ))
+                      const cantidad = cartItem?.cantidad || 0;
+
+                      return (
+                        <button
+                          key={platform.idproducto}
+                          onClick={() => {
+                            setSearchTerm(platform.nombre);
+                          }}
+                          className="w-full text-left px-3 py-2 rounded-xl hover:bg-neutral-800 transition"
+                        >
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <p className="font-semibold text-white">
+                                {platform.nombre}
+                              </p>
+
+                              <p className="text-sm text-neutral-400">
+                                ${platform.precioventa.toLocaleString("es-CO")}
+                              </p>
+                            </div>
+
+                            {cantidad > 0 && (
+                              <div className="bg-rose-500 text-white text-xs font-bold px-2 py-1 rounded-full">
+                                {cantidad} en carrito
+                              </div>
+                            )}
+                          </div>
+                        </button>
+                      );
+                    })
                   ) : (
                     <p className="text-neutral-500 text-sm px-3 py-2">
                       No hay coincidencias
@@ -251,6 +348,186 @@ export default function App() {
                 </div>
               )}
             </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* MODAL CARRITO */}
+      <AnimatePresence>
+        {showCart && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="
+        fixed
+        inset-0
+        z-[100]
+        bg-black/60
+        backdrop-blur-sm
+        flex
+        items-end
+        md:items-center
+        justify-center
+      "
+          >
+            <motion.div
+              initial={{ y: 100 }}
+              animate={{ y: 0 }}
+              exit={{ y: 100 }}
+              transition={{ duration: 0.25 }}
+              className="
+          w-full
+          md:max-w-md
+          h-[90vh]
+          md:h-[85vh]
+          bg-[#111]
+          rounded-t-3xl
+          md:rounded-3xl
+          border
+          border-zinc-800
+          flex
+          flex-col
+          overflow-hidden
+        "
+            >
+              {/* HEADER */}
+              <div className="flex items-center justify-between p-5 border-b border-zinc-800 shrink-0">
+                <h2 className="text-2xl font-black text-white">Mi Carrito</h2>
+
+                <button
+                  onClick={() => setShowCart(false)}
+                  className="
+              w-10
+              h-10
+              rounded-full
+              bg-zinc-800
+              hover:bg-zinc-700
+              text-white
+            "
+                >
+                  ✕
+                </button>
+              </div>
+
+              {/* PRODUCTOS */}
+              <div className="flex-1 overflow-y-auto p-5 space-y-4">
+                {cart.map((item) => (
+                  <div
+                    key={item.iditem}
+                    className="
+                bg-zinc-900
+                rounded-2xl
+                p-4
+                flex
+                items-center
+                gap-4
+              "
+                  >
+                    <div className="flex-1">
+                      <h3 className="font-bold text-white">{item.nombre}</h3>
+
+                      <p className="text-zinc-400">
+                        ${item.preciounitario?.toLocaleString("es-CO")}
+                      </p>
+                    </div>
+
+                    {/* CONTROLES */}
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => removeFromCart(item.idproducto)}
+                        className="
+                    w-9
+                    h-9
+                    rounded-full
+                    bg-zinc-800
+                    text-white
+                  "
+                      >
+                        -
+                      </button>
+
+                      <span className="font-bold text-white w-5 text-center">
+                        {item.cantidad}
+                      </span>
+
+                      <button
+                        onClick={() => addToCart(item.idproducto)}
+                        className="
+                    w-9
+                    h-9
+                    rounded-full
+                    bg-white
+                    text-black
+                  "
+                      >
+                        +
+                      </button>
+
+                      <button
+                        onClick={() => deleteFromCart(item.idproducto)}
+                        className="
+                    ml-2
+                    w-9
+                    h-9
+                    rounded-full
+                    bg-rose-500/20
+                    text-rose-400
+                  "
+                      >
+                        🗑
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* FOOTER */}
+              <div className="border-t border-zinc-800 p-5 shrink-0">
+                <div className="flex justify-between mb-4">
+                  <span className="text-lg font-bold text-white">Total</span>
+
+                  <span className="text-2xl font-black text-white">
+                    $
+                    {cart
+                      .reduce((acc, item) => acc + item.subtotal, 0)
+                      .toLocaleString("es-CO")}
+                  </span>
+                </div>
+
+                <button
+                  className="
+              w-full
+              py-4
+              rounded-2xl
+              bg-gradient-to-r
+              from-rose-500
+              to-orange-500
+              font-black
+              text-lg
+              text-white
+              mb-3
+            "
+                >
+                  Comprar
+                </button>
+
+                <button
+                  onClick={clearCart}
+                  className="
+              w-full
+              py-4
+              rounded-2xl
+              bg-zinc-800
+              hover:bg-zinc-700
+              text-rose-400
+              font-bold
+            "
+                >
+                  Vaciar carrito
+                </button>
+              </div>
+            </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
@@ -385,9 +662,11 @@ export default function App() {
                   const precioFull =
                     platform.precioventa +
                     (platform.precioventa * descuento) / 100;
+
                   const cartItem = cart.find(
-                    (item) => item.id === platform.idproducto,
+                    (item) => item.idproducto === platform.idproducto,
                   );
+
                   const cantidad = cartItem?.cantidad || 0;
 
                   const inCart = cantidad > 0;
@@ -405,7 +684,7 @@ export default function App() {
                       <div
                         className={cn(
                           "relative p-5 rounded-3xl overflow-hidden border transition-all duration-300",
-                          inCart
+                          cartItem
                             ? "border-rose-500 shadow-[0_0_20px_rgba(244,63,94,0.2)]"
                             : "border-neutral-800 bg-neutral-900/50",
                         )}
@@ -469,52 +748,46 @@ export default function App() {
 
                           {/* Action Button */}
                           <div className="flex items-center gap-3">
-                            {/* BOTÓN MENOS */}
-                            <button
-                              onClick={() =>
-                                removeFromCart(platform.idproducto)
-                              }
-                              disabled={!inCart}
-                              className={cn(
-                                "w-12 h-12 rounded-xl flex items-center justify-center font-bold text-xl transition-all duration-300",
-                                inCart
-                                  ? "bg-neutral-800 text-white hover:bg-neutral-700"
-                                  : "bg-neutral-900 text-neutral-600 cursor-not-allowed",
-                              )}
-                            >
-                              -
-                            </button>
-
-                            {/* BOTÓN PRINCIPAL */}
-                            <button
-                              onClick={() => addToCart(platform.idproducto)}
-                              className={cn(
-                                "flex-1 py-3.5 rounded-xl font-bold text-sm transition-all duration-300 flex items-center justify-center gap-2",
-                                inCart
-                                  ? "bg-rose-500 text-white"
-                                  : "bg-white text-black hover:bg-neutral-200",
-                              )}
-                            >
+                            <div className="flex items-center gap-3 w-full">
                               {inCart ? (
                                 <>
-                                  <CheckCircle2 className="w-5 h-5" />
-                                  {cantidad} en carrito
+                                  <button
+                                    onClick={() =>
+                                      removeFromCart(platform.idproducto)
+                                    }
+                                    className="w-12 h-12 rounded-xl bg-neutral-800 text-white text-2xl font-bold hover:bg-neutral-700 transition"
+                                  >
+                                    -
+                                  </button>
+
+                                  <motion.div
+                                    layout
+                                    className="flex-1 py-3 rounded-xl bg-rose-500 text-center font-bold"
+                                  >
+                                    {cantidad} en carrito
+                                  </motion.div>
+
+                                  <button
+                                    onClick={() =>
+                                      addToCart(platform.idproducto)
+                                    }
+                                    className="w-12 h-12 rounded-xl bg-white text-black text-2xl font-bold hover:bg-neutral-200 transition"
+                                  >
+                                    +
+                                  </button>
                                 </>
                               ) : (
-                                <>
+                                <motion.button
+                                  layout
+                                  whileTap={{ scale: 0.96 }}
+                                  onClick={() => addToCart(platform.idproducto)}
+                                  className="w-full py-3.5 rounded-xl font-bold text-sm transition-all duration-300 flex items-center justify-center gap-2 bg-white text-black hover:bg-neutral-200"
+                                >
                                   Lo Quiero Ahora
                                   <ChevronRight className="w-4 h-4" />
-                                </>
+                                </motion.button>
                               )}
-                            </button>
-
-                            {/* BOTÓN MÁS */}
-                            <button
-                              onClick={() => addToCart(platform.idproducto)}
-                              className="w-12 h-12 rounded-xl bg-neutral-800 text-white hover:bg-neutral-700 flex items-center justify-center font-bold text-xl transition-all duration-300"
-                            >
-                              +
-                            </button>
+                            </div>
                           </div>
                         </div>
                       </div>
@@ -548,46 +821,74 @@ export default function App() {
       </main>
 
       {/* STRATEGIC FLOATING CART - The ultimate Call to Action */}
+      {/* BOTÓN FLOTANTE */}
       <AnimatePresence>
-        {cart.length > 0 && (
+        {cart.length > 0 && !showCart && (
           <motion.div
             initial={{ y: 100, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             exit={{ y: 100, opacity: 0 }}
-            className="fixed bottom-24 left-0 w-full px-5 z-40 md:hidden"
+            className="fixed bottom-24 left-0 w-full px-5 z-40"
           >
-            <div className="w-full max-w-lg mx-auto bg-gradient-to-r from-rose-500 to-orange-500 rounded-2xl p-1 shadow-[0_10px_40px_rgba(244,63,94,0.4)]">
-              <button className="w-full bg-black/20 backdrop-blur-md rounded-xl p-4 flex items-center justify-between active:scale-[0.98] transition-transform">
+            <div className="max-w-lg mx-auto">
+              <button
+                onClick={() => setShowCart(true)}
+                className="
+            w-full
+            bg-gradient-to-r
+            from-rose-500
+            to-orange-500
+            rounded-2xl
+            p-4
+            flex
+            items-center
+            justify-between
+            shadow-[0_10px_40px_rgba(244,63,94,0.4)]
+          "
+              >
                 <div className="flex items-center gap-3">
                   <div className="relative">
                     <ShoppingBag className="w-6 h-6 text-white" />
-                    <span className="absolute -top-2 -right-2 w-5 h-5 rounded-full bg-white text-black text-xs font-bold flex items-center justify-center">
+
+                    <span
+                      className="
+                  absolute
+                  -top-2
+                  -right-2
+                  w-5
+                  h-5
+                  rounded-full
+                  bg-white
+                  text-black
+                  text-xs
+                  font-bold
+                  flex
+                  items-center
+                  justify-center
+                "
+                    >
                       {cart.reduce((acc, item) => acc + item.cantidad, 0)}
                     </span>
                   </div>
+
                   <div className="text-left">
-                    <p className="font-bold text-sm text-white leading-tight">
-                      Completar Compra
-                    </p>
-                    <p className="text-xs text-rose-100/80">
-                      Estás ahorrando +50%
+                    <p className="font-bold text-white">Mi Carrito</p>
+
+                    <p className="text-xs text-rose-100">
+                      Toca para ver pedido
                     </p>
                   </div>
                 </div>
+
                 <div className="flex items-center gap-2">
-                  <span className="font-black text-lg text-white">
+                  <span className="font-black text-xl text-white">
                     $
                     {cart
-                      .reduce((acc, item) => {
-                        const p = platforms.find(
-                          (pl: any) => pl.idproducto === item.id,
-                        );
-
-                        return acc + (p?.precioventa || 0) * item.cantidad;
-                      }, 0)
+                      .reduce((acc, item) => acc + item.subtotal, 0)
                       .toLocaleString("es-CO")}
                   </span>
-                  <ChevronRight className="w-5 h-5 text-white/70" />
+
+                  <ChevronRight className="w-5 h-5 text-white" />
                 </div>
               </button>
             </div>
