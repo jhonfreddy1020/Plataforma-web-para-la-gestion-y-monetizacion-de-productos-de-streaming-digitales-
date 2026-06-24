@@ -4,7 +4,19 @@ Grupo:
 1. Jhon Fredy Mejia
 2. Juan Esteban Contreras Castellanos
 
-Objetivo General: Desarrollar una plataforma web para la gestión y monetización de productos de streaming digitales mediante metodología scrum para usuarios y administradores
+Objetivo General: 
+Desarrollar una plataforma web para la gestión de productos de streaming digitales mediante metología SCRUM que permita optimizar los procesos de administración, ventas y análisis comercial del emprendimiento Digital Juanex.
+
+Objetivos Específicos:
+  🟩Automatizar la gestión de usuarios.
+  
+  🟩Administrar pedidos y pagos.
+  
+  🟩Gestionar el catálogo de productos.
+  
+  🟩Proteger la información mediante mecanismos de autenticación.
+  
+  🟩Generar estadísticas para apoyar la toma de decisiones.
 
 📌 Funcionalidades implementadas
 
