@@ -108,8 +108,9 @@ CREATE TABLE Pedido (
 
 /*
 TABLA PAGO
-0 = No validado
-1 = Validado
+0 = Pendiente
+1 = Confirmado
+2 = Rechazado
 */
 CREATE TABLE Pago (
     idPago INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -117,7 +118,7 @@ CREATE TABLE Pago (
 
     /*0-Efectivo, 1-Transferencia, 2-Otro*/
     metodoPago INT DEFAULT 0 CHECK (metodoPago IN (0,1,2)),
-    estadoValidacion INT DEFAULT 0 CHECK (estadoValidacion IN (0,1)),
+    estadoValidacion INT DEFAULT 0 CHECK (estadoValidacion IN (0,1,2)),
 
     FOREIGN KEY (idPedido)
     REFERENCES Pedido(idPedido)
