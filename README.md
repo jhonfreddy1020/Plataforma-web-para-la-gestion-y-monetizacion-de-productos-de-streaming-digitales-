@@ -1,7 +1,5 @@
 
-  # Untitled
-
-  This is a code bundle for Untitled. The original project is available at https://www.figma.com/design/KXjvBo1dR8zx9GWBLu2ARq/Untitled.
+  # SITIO WEB PARA LA GESTIÓN Y MONETIZACIÓN DE PRODUCTOS DE STREAMING DIGITALES
 
   ## Running the code
 
